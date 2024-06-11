@@ -14,6 +14,15 @@ Please open a pull request if you make changes to this <3
 
 ---------
 
+Requirements:
+
+Latest version of Python
+Discord.Py
+
+
+
+---------
+
 Instructions:
 
 1. Download .Py and add secret to 'token here' keeping the little dash marks. Also swap roles to the ones you want changed in the code
