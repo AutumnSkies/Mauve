@@ -17,8 +17,11 @@ Please open a pull request if you make changes to this <3
 Requirements:
 
 Latest version of Python
+
 Discord.Py
+
 Asyncio
+
 Logging
 
 ---------
