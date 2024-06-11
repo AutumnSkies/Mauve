@@ -24,7 +24,7 @@ If you're having issues with permissions did you create and assign the "MauvePer
 bot = commands.Bot(command_prefix='m;', description=description, intents=intents)
 
 # Sends a message in terminal to let us know the bot should be online, and thus accepting commands.
-# Also sets presence. Lavender really is a pretty color.
+# Also sets presence.
 
 @bot.event
 async def on_ready():
@@ -39,7 +39,31 @@ async def on_command_error(ctx, error):
     if isinstance(error, discord.ext.commands.errors.MissingRole) and "Role 'MauvePermissions' is required to run this command" in str(error):
         await ctx.send("I'm pretty sure you shouldn't be messing with this <3 (Lacking MauvePermissions role)")
 
-# Configure logging - does this actually work? it's not writing to Mauve.log
+# Automatically makes permissions role
+
+@bot.event
+async def on_ready():
+    
+    role_name = "MauvePermissions"
+    
+    for guild in bot.guilds:
+        # Check if the role already exists
+        role = discord.utils.get(guild.roles, name=role_name)
+        
+        if role:
+            print(f"The role `{role_name}` already exists in guild `{guild.name}`.")
+        else:
+            # Create the role
+            try:
+                await guild.create_role(name=role_name, reason="Role needed for specific permissions")
+                print(f"The role `{role_name}` has been created in guild `{guild.name}`.")
+            except discord.Forbidden:
+                print(f"I do not have permission to create roles in guild `{guild.name}`.")
+            except discord.HTTPException as e:
+                print(f"An error occurred in guild `{guild.name}`: {str(e)}")
+
+# Configure logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('Mauve')
 handler = logging.FileHandler(filename='Mauve.log', encoding='utf-8', mode='w')
@@ -52,11 +76,7 @@ logger.addHandler(handler)
 async def ping(ctx):
      await ctx.send(f'Pong! {round(bot.latency * 1000)}ms')
 
-# It cannot be this fucking easy to do this
-# Anyway, here we map out the roles we want gone and which ones replace them.
-# Maybe move this to the top later?
-# YOU WILL NEED TO CHANGE ALL OF THESE TO MATCH WHATEVER YOUR SERVER LOOKS LIKE
-# Yes, it's tedious, sorry!
+# Role maps for index and update_role
 
 role_mappings = {
     "LegacyPronoun1": ("NewPronoun1", "color1"),
@@ -74,11 +94,8 @@ role_mappings = {
 }
 
 # Index command: Use caution on large servers. May lag and/or ratelimit
-# I have no goddamn idea how this works on larger servers. Probably need to put in something that makes this bot ratelimit itself
-# I think discord.py does rate limit internally though?. RUN INDEX COMMAND FIRST BEFORE PUSHING THE BIG RED BUTTON TO CHECK THIS
 
 @bot.command()
-# You'll see this a lot, it makes sure that the user has the proper permissions role. Without that role the command wont execute for god themselves
 @commands.has_role("MauvePermissions")
 async def index(ctx):
     # This is the more efficent way to do it. - Jesse
