@@ -18,8 +18,8 @@ Requirements:
 
 Latest version of Python
 Discord.Py
-
-
+Asyncio
+Logging
 
 ---------
 
