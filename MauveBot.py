@@ -105,26 +105,28 @@ role_mappings = {
 @bot.command()
 @commands.has_role("MauvePermissions")
 async def index(ctx):
-    # This is the more efficent way to do it. - Jesse
     roles_to_check = list(role_mappings.keys())
     members_by_role = {role: [] for role in roles_to_check}
-    # I don't actually remember why this works
+    
+    # Collect members by role
     for member in ctx.guild.members:
         for role in member.roles:
             if role.name in roles_to_check:
                 members_by_role[role.name].append(member.name)
-
-    embed = discord.Embed(title="Members with legacy roles", color=discord.Color.purple())
-    # Basically just lists all of the users with the roles in question and then also summerizes the number of users with those roles
-    # Also a mostly harmless command to make sure this works at scale (god I hope it does)
+    
+    # Create and send embeds
+    chunk_size = 20  # Adjust the chunk size as needed
     for role, members in members_by_role.items():
         total_members = len(members)
         if total_members > 0:
-            embed.add_field(name=f"{role} ({total_members} members)", value='\n'.join(members), inline=False)
+            chunks = [members[i:i + chunk_size] for i in range(0, total_members, chunk_size)]
+            for chunk in chunks:
+                embed = discord.Embed(title=f"Members with {role} role ({total_members} total)", color=discord.Color.purple())
+                embed.description = "\n".join(chunk)
+                await ctx.send(embed=embed)
         else:
-            embed.add_field(name=role, value="No members found with this role.", inline=False)
-
-    await ctx.send(embed=embed)
+            embed = discord.Embed(title=role, description="No members found with this role.", color=discord.Color.purple())
+            await ctx.send(embed=embed)
 
 # This is the actual replacement script
 
