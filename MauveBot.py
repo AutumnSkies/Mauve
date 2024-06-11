@@ -17,20 +17,11 @@ description = '''You probably shouldn't use this if you don't know what it does.
 
 En masse role replacer made by catgirlandamoth (Sadie). Special thanks to Pea, Diane and all the rest on the rain discord for help!
 
-If you're having issues with permissions did you create and assign the "MauvePermissions" role? If you're still having issues, consider rate limits or server size. Patience is a virue :3'''
+If you're having issues with permissions did the bot create the "MauvePermissions" role? Have you assigned the role to yourself? If you're still having issues, consider rate limits or server size. Patience is a virue :3'''
 
 # Sets up prefix "m;" description and intents
 
 bot = commands.Bot(command_prefix='m;', description=description, intents=intents)
-
-# Sends a message in terminal to let us know the bot should be online, and thus accepting commands.
-# Also sets presence.
-
-@bot.event
-async def on_ready():
-    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    print('------')
-    await bot.change_presence(activity=discord.Game(name="Lavender is such a pretty color"))
 
 # Very advanced error handling
 
@@ -51,16 +42,32 @@ async def on_ready():
         role = discord.utils.get(guild.roles, name=role_name)
         
         if role:
+            print('------')
             print(f"The role `{role_name}` already exists in guild `{guild.name}`.")
+            print('------')
+            print('Prelim checks complete, bot ready!')
         else:
             # Create the role
             try:
                 await guild.create_role(name=role_name, reason="Role needed for specific permissions")
+                print('------')
                 print(f"The role `{role_name}` has been created in guild `{guild.name}`.")
+                print('------')
+                print('Prelim checks complete, bot ready!')
             except discord.Forbidden:
+                print('------')
                 print(f"I do not have permission to create roles in guild `{guild.name}`.")
+                print('------')
+                print('Permissions Error - Fix this before continuing!')
             except discord.HTTPException as e:
+                print('------')
                 print(f"An error occurred in guild `{guild.name}`: {str(e)}")
+                print('------')
+                print('Misc Error - Check terminal/logs and DM catgirlandamoth for help!')
+    print('------')
+    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
+    print('------')
+    await bot.change_presence(activity=discord.Game(name="Lavender is such a pretty color"))
 
 # Configure logging
 
@@ -79,18 +86,18 @@ async def ping(ctx):
 # Role maps for index and update_role
 
 role_mappings = {
-    "LegacyPronoun1": ("NewPronoun1", "color1"),
-    "LegacyPronoun2": ("NewPronoun2", "color2"),
-    "LegacyPronoun3": ("NewPronoun3", "color3"),
-    "LegacyPronoun4": ("NewPronoun4", "color4"),
-    "LegacyPronoun5": ("NewPronoun5", "color5"),
-    "LegacyPronoun6": ("NewPronoun6", "color6"),
-    "LegacyPronoun7": ("NewPronoun7", "color7"),
-    "LegacyPronoun8": ("NewPronoun8", "color8"),
-    "LegacyPronoun9": ("NewPronoun9", "color9"),
-    "LegacyPronoun10": ("NewPronoun10", "color10"),
-    "LegacyPronoun11": ("NewPronoun11", "color11"),
-    "LegacyPronoun12": ("NewPronoun12", "color12"),
+    ".Ask": ("Ask", "color: Slate"),
+    ".Name is pronoun": ("Name is pronoun", "color: Slate"),
+    ".Any Pronouns": ("Any Pronouns", "color: Rose"),
+    ".Not She/Her/Hers": ("Not She/Her/Hers", "color: Rose"),
+    ".Not He/Him/His": ("Not He/Him/His", "color: Burnt Orange"),
+    ".It/Its/Its": ("It/Its/Its", "color: Slate"),
+    ".Fae/Faer/Faers": ("Fae/Faer/Faers", "color: Helio"),
+    ".Ae/Aer": ("Ae/Aer", "color: Raspberry"),
+    ".They/Them/Theirs": ("They/Them/Theirs", "color: Electric Purple"),
+    ".He/Him/His": ("He/Him/His", "color: Blue"),
+    ".She/Her/Hers": ("She/Her/Hers", "color: Bubblegum"),
+    ".Vi/Ver/Vers": ("Vi/Ver/Vers", "color: Black"),
 }
 
 # Index command: Use caution on large servers. May lag and/or ratelimit
@@ -162,6 +169,42 @@ async def update_roles(ctx):
     except asyncio.TimeoutError:
         # Every 60 seconds in New York a minute passes in Virginia
         await ctx.send("Canceled. Timeout.")
+
+# Role names
+roles_list = [
+    ".Ask", "Ask", "color: Slate",
+    ".Name is pronoun", "Name is pronoun", "color: Slate",
+    ".Any Pronouns", "Any Pronouns", "color: Rose",
+    ".Not She/Her/Hers", "Not She/Her/Hers", "color: Rose",
+    ".Not He/Him/His", "Not He/Him/His", "color: Burnt Orange",
+    ".It/Its/Its", "It/Its/Its", "color: Slate",
+    ".Fae/Faer/Faers", "Fae/Faer/Faers", "color: Helio",
+    ".Ae/Aer", "Ae/Aer", "color: Raspberry",
+    ".They/Them/Theirs", "They/Them/Theirs", "color: Electric Purple",
+    ".He/Him/His", "He/Him/His", "color: Blue",
+    ".She/Her/Hers", "She/Her/Hers", "color: Bubblegum",
+    ".Vi/Ver/Vers", "Vi/Ver/Vers", "color: Black"
+]
+
+@bot.command()
+@commands.has_role("MauvePermissions")
+async def spellcheck(ctx):
+    guild = ctx.guild
+    missing_roles = []
+    
+    for role_name in roles_list:
+        # Check if the role already exists
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            missing_roles.append(role_name)
+    
+    if missing_roles:
+        embed = discord.Embed(title="Missing Roles", color=discord.Colour.red())
+        embed.add_field(name="Roles not found in the server", value="\n".join(missing_roles), inline=False)
+        await ctx.send(embed=embed)
+        await ctx.send("If anything is missing it's probably an issue with capitalization, or the role is spelled wrong")
+    else:
+        await ctx.send("All roles are present in the server!")
 
 #pulls token from up top and should actually make the log handler work
 bot.run(TOKEN, log_handler=handler)
