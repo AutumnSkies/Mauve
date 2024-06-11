@@ -52,36 +52,6 @@ logger.addHandler(handler)
 async def ping(ctx):
      await ctx.send(f'Pong! {round(bot.latency * 1000)}ms')
 
-# Index command: Use caution on large servers. May lag and/or ratelimit
-# I have no goddamn idea how this works on larger servers. Probably need to put in something that makes this bot ratelimit itself
-# I think discord.py does rate limit internally though?. RUN INDEX COMMAND FIRST BEFORE PUSHING THE BIG RED BUTTON TO CHECK THIS
-
-@bot.command()
-# You'll see this a lot, it makes sure that the user has the proper permissions role. Without that role the command wont execute for god themselves
-@commands.has_role("MauvePermissions")
-async def index(ctx):
-    # There has got to be a more effecient way to do this
-    # When I'm done I really should move all of these up to the top
-    roles_to_check = ["LegacyPronoun1", "LegacyPronoun2", "LegacyPronoun3", "LegacyPronoun4", "LegacyPronoun5", "LegacyPronoun6", "LegacyPronoun7", "LegacyPronoun8", "LegacyPronoun9", "LegacyPronoun10", "LegacyPronoun11", "LegacyPronoun12"]
-    members_by_role = {role: [] for role in roles_to_check}
-    # I don't actually remember why this works
-    for member in ctx.guild.members:
-        for role in member.roles:
-            if role.name in roles_to_check:
-                members_by_role[role.name].append(member.name)
-
-    embed = discord.Embed(title="Members with legacy roles", color=discord.Color.purple())
-    # Basically just lists all of the users with the roles in question and then also summerizes the number of users with those roles
-    # Also a mostly harmless command to make sure this works at scale (god I hope it does)
-    for role, members in members_by_role.items():
-        total_members = len(members)
-        if total_members > 0:
-            embed.add_field(name=f"{role} ({total_members} members)", value='\n'.join(members), inline=False)
-        else:
-            embed.add_field(name=role, value="No members found with this role.", inline=False)
-
-    await ctx.send(embed=embed)
-
 # It cannot be this fucking easy to do this
 # Anyway, here we map out the roles we want gone and which ones replace them.
 # Maybe move this to the top later?
@@ -103,6 +73,34 @@ role_mappings = {
     "LegacyPronoun12": ("NewPronoun12", "color12"),
 }
 
+# Index command: Use caution on large servers. May lag and/or ratelimit
+# I have no goddamn idea how this works on larger servers. Probably need to put in something that makes this bot ratelimit itself
+# I think discord.py does rate limit internally though?. RUN INDEX COMMAND FIRST BEFORE PUSHING THE BIG RED BUTTON TO CHECK THIS
+
+@bot.command()
+# You'll see this a lot, it makes sure that the user has the proper permissions role. Without that role the command wont execute for god themselves
+@commands.has_role("MauvePermissions")
+async def index(ctx):
+    # This is the more efficent way to do it. - Jesse
+    roles_to_check = list(role_mappings.keys())
+    members_by_role = {role: [] for role in roles_to_check}
+    # I don't actually remember why this works
+    for member in ctx.guild.members:
+        for role in member.roles:
+            if role.name in roles_to_check:
+                members_by_role[role.name].append(member.name)
+
+    embed = discord.Embed(title="Members with legacy roles", color=discord.Color.purple())
+    # Basically just lists all of the users with the roles in question and then also summerizes the number of users with those roles
+    # Also a mostly harmless command to make sure this works at scale (god I hope it does)
+    for role, members in members_by_role.items():
+        total_members = len(members)
+        if total_members > 0:
+            embed.add_field(name=f"{role} ({total_members} members)", value='\n'.join(members), inline=False)
+        else:
+            embed.add_field(name=role, value="No members found with this role.", inline=False)
+
+    await ctx.send(embed=embed)
 
 # This is the actual replacement script
 
