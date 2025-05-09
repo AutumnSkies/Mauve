@@ -15,7 +15,7 @@ intents.message_content = True
 
 description = '''You probably shouldn't use this if you don't know what it does.
 
-En masse role replacer made by catgirlandamoth (Sadie). Special thanks to Pea, Diane and all the rest on the rain discord for help!
+En masse role replacer made by stylisticallycatgirl (Sadie). Special thanks to Pea, Diane and all the rest on the rain discord for help!
 
 If you're having issues with permissions did you create and assign the "MauvePermissions" role? If you're still having issues, consider rate limits or server size. Patience is a virue :3'''
 
