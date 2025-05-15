@@ -200,7 +200,30 @@ async def rollback(ctx, mode: str = None):
                 if roles_to_add:
                     await member.add_roles(*roles_to_add)
 
-    await ctx.send(f"✅ Rollback {'dry run' if is_dry_run else 'complete'} — {rollback_count} entries processed.")
+    # Handle created role deletions
+    role_creation_path = 'created_roles.log'
+    created_roles = []
+    if os.path.exists(role_creation_path):
+        with open(role_creation_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                match = re.match(r".*\[CREATED_ROLE\] (\d+):(.+)", line)
+                if match and match.group(1) == str(ctx.guild.id):
+                    created_roles.append(match.group(2))
+
+    deleted_roles = []
+    for role_name in created_roles:
+        role = discord.utils.get(ctx.guild.roles, name=role_name)
+        if role:
+            try:
+                if not is_dry_run:
+                    await role.delete(reason="Rollback of created role")
+                deleted_roles.append(role_name)
+            except Exception as e:
+                await ctx.send(f"⚠️ Could not delete role `{role_name}`: {e}")
+
+    await ctx.send(f"✅ Rollback {'dry run' if is_dry_run else 'complete'} — {rollback_count} member entries processed.")
+    if deleted_roles:
+        await ctx.send(f"🗑️ Deleted roles: {', '.join(deleted_roles)}")
 
     try:
         with open(update_log_path, 'rb') as f:
@@ -259,12 +282,22 @@ async def create_missing_roles(ctx):
     guild = ctx.guild
     created_roles = []
 
+    # Setup logger for created roles
+    role_logger = logging.getLogger('RoleCreations')
+    role_logger.setLevel(logging.INFO)
+    role_creation_path = 'created_roles.log'
+    if not any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(role_creation_path) for h in role_logger.handlers):
+        role_creation_handler = logging.FileHandler(filename=role_creation_path, encoding='utf-8', mode='a')
+        role_creation_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+        role_logger.addHandler(role_creation_handler)
+
     for legacy, (pronoun, color) in role_mappings.items():
         for role_name in [legacy, pronoun, color]:
             if not discord.utils.get(guild.roles, name=role_name):
                 try:
                     await guild.create_role(name=role_name, reason="Auto-created from Mauve role mapping")
                     created_roles.append(role_name)
+                    role_logger.info(f"[CREATED_ROLE] {guild.id}:{role_name}")
                 except discord.Forbidden:
                     await ctx.send(f"❌ Missing permissions to create role `{role_name}`")
                 except Exception as e:
