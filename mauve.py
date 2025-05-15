@@ -221,30 +221,37 @@ async def list(ctx):
 @commands.has_role("MauvePermissions")
 async def check(ctx):
     guild = ctx.guild
-    missing_roles = set()
+    found_all = True
 
     for legacy, (pronoun, color) in role_mappings.items():
-        if not discord.utils.get(guild.roles, name=legacy):
-            missing_roles.add(legacy)
-        if not discord.utils.get(guild.roles, name=pronoun):
-            missing_roles.add(pronoun)
-        if not discord.utils.get(guild.roles, name=color):
-            missing_roles.add(color)
+        missing = []
+        for role_name in [legacy, pronoun, color]:
+            if not discord.utils.get(guild.roles, name=role_name):
+                missing.append(role_name)
 
-    if missing_roles:
-        embed = discord.Embed(
-            title="⚠️ Missing Roles",
-            description="\n".join(sorted(missing_roles)),
-            color=discord.Color.purple()
-        )
-    else:
-        embed = discord.Embed(
-            title="✅ Role Check Complete",
-            description="All roles in the mapping exist in this server.",
-            color=discord.Color.purple()
-        )
+        if missing:
+            found_all = False
+            embed = discord.Embed(
+                title="⚠️ Missing Roles",
+                description="\n".join(f"❌ {r}" for r in missing),
+                color=discord.Color.purple()
+            )
+        else:
+            embed = discord.Embed(
+                title="✅ All Present",
+                description=f"All roles found:\n• {legacy}\n• {pronoun}\n• {color}",
+                color=discord.Color.purple()
+            )
+        
+        embed.set_footer(text="Mapping: Legacy → Pronoun, Color")
+        embed.add_field(name="Legacy Role", value=legacy, inline=True)
+        embed.add_field(name="Pronoun Role", value=pronoun, inline=True)
+        embed.add_field(name="Color Role", value=color, inline=True)
 
-    await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
+
+    if found_all:
+        await ctx.send("🎉 All role mappings are complete.")
 
 @bot.command()
 @commands.has_role("MauvePermissions")
