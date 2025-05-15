@@ -208,5 +208,14 @@ async def rollback(ctx, mode: str = None):
     except Exception as e:
         await ctx.send(f"⚠️ Could not upload the log: {e}")
 
+@bot.command()
+async def list(ctx):
+    if ctx.author.id != 1191948659160518656:
+        await ctx.send("❌ You are not authorized to use this command.")
+        return
+
+    server_list = "\n".join([f"{guild.name} (ID: {guild.id})" for guild in bot.guilds])
+    await ctx.send(f"📋 The bot is in the following servers:\n```{server_list}```")
+
 # Run the bot
 bot.run(TOKEN, log_handler=handler)
