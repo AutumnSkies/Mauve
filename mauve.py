@@ -58,18 +58,18 @@ update_logger.addHandler(update_handler)
 
 # Role mapping (legacy -> (new_pronoun, new_color))
 role_mappings = {
-    "LegacyPronoun1": ("NewPronoun1", "Color1"),
-    "LegacyPronoun2": ("NewPronoun2", "Color2"),
-    "LegacyPronoun3": ("NewPronoun3", "Color3"),
-    "LegacyPronoun4": ("NewPronoun4", "Color4"),
-    "LegacyPronoun5": ("NewPronoun5", "Color5"),
-    "LegacyPronoun6": ("NewPronoun6", "Color6"),
-    "LegacyPronoun7": ("NewPronoun7", "Color7"),
-    "LegacyPronoun8": ("NewPronoun8", "Color8"),
-    "LegacyPronoun9": ("NewPronoun9", "Color9"),
-    "LegacyPronoun10": ("NewPronoun10", "Color10"),
-    "LegacyPronoun11": ("NewPronoun11", "Color11"),
-    "LegacyPronoun12": ("NewPronoun12", "Color12"),
+    ".Ask": ("Ask", "Slate"),
+    ".Name is pronoun": ("Name is pronoun", "Teal"),
+    ".Any Pronouns": ("Any Pronouns", "Peach"),
+    ".It/It/Its": ("It/Its/Its", "Slate"),
+    ".Fae/Faer/Faers": ("Fae/Faer/Faers", "Helio"),
+    ".Ae/Aer": ("Ae/Aer", "Raspberry"),
+    ".Vi/Ver/Vers": ("Vi/Ver/Vers", "Black"),
+    ".They/Them/Theirs": ("They/Them/Theirs", "Electric Purple"),
+    ".He/Him/His": ("He/Him/His", "Sapphire"),
+    ".She/Her/Hers": ("She/Her/Hers", "Bubblegum"),
+    ".Not She/Her/Hers": ("Not She/Her/Hers", "Peach"),
+    ".Not He/Him/His": ("Not He/Him/His", "Orange"),
 }
 
 @bot.command()
@@ -216,6 +216,67 @@ async def list(ctx):
 
     server_list = "\n".join([f"{guild.name} (ID: {guild.id})" for guild in bot.guilds])
     await ctx.send(f"📋 The bot is in the following servers:\n```{server_list}```")
+
+@bot.command()
+@commands.has_role("MauvePermissions")
+async def check(ctx):
+    guild = ctx.guild
+    missing_roles = set()
+
+    for legacy, (pronoun, color) in role_mappings.items():
+        if not discord.utils.get(guild.roles, name=legacy):
+            missing_roles.add(legacy)
+        if not discord.utils.get(guild.roles, name=pronoun):
+            missing_roles.add(pronoun)
+        if not discord.utils.get(guild.roles, name=color):
+            missing_roles.add(color)
+
+    if missing_roles:
+        embed = discord.Embed(
+            title="⚠️ Missing Roles",
+            description="\n".join(sorted(missing_roles)),
+            color=discord.Color.purple()
+        )
+    else:
+        embed = discord.Embed(
+            title="✅ Role Check Complete",
+            description="All roles in the mapping exist in this server.",
+            color=discord.Color.purple()
+        )
+
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.has_role("MauvePermissions")
+async def create_missing_roles(ctx):
+    guild = ctx.guild
+    created_roles = []
+
+    for legacy, (pronoun, color) in role_mappings.items():
+        for role_name in [legacy, pronoun, color]:
+            if not discord.utils.get(guild.roles, name=role_name):
+                try:
+                    await guild.create_role(name=role_name, reason="Auto-created from Mauve role mapping")
+                    created_roles.append(role_name)
+                except discord.Forbidden:
+                    await ctx.send(f"❌ Missing permissions to create role `{role_name}`")
+                except Exception as e:
+                    await ctx.send(f"⚠️ Error creating role `{role_name}`: {e}")
+
+    if created_roles:
+        embed = discord.Embed(
+            title="🆕 Created Missing Roles",
+            description="\n".join(created_roles),
+            color=discord.Color.purple()
+        )
+    else:
+        embed = discord.Embed(
+            title="✅ All Roles Present",
+            description="No missing roles found in this server.",
+            color=discord.Color.purple()
+        )
+
+    await ctx.send(embed=embed)
 
 # Run the bot
 bot.run(TOKEN, log_handler=handler)
