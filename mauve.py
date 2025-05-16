@@ -64,7 +64,6 @@ role_mappings = {
     ".It/It/Its": ("It/Its/Its", "Slate"),
     ".Fae/Faer/Faers": ("Fae/Faer/Faers", "Helio"),
     ".Ae/Aer": ("Ae/Aer", "Raspberry"),
-    ".Vi/Ver/Vers": ("Vi/Ver/Vers", "Black"),
     ".They/Them/Theirs": ("They/Them/Theirs", "Electric Purple"),
     ".He/Him/His": ("He/Him/His", "Sapphire"),
     ".She/Her/Hers": ("She/Her/Hers", "Bubblegum"),
@@ -102,30 +101,53 @@ async def update_roles(ctx, mode: str = None):
         all_updates = []
         update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} started by {ctx.author} in guild '{guild.name}'")
 
+        # Hardcoded legacy role priority (top = highest priority)
+        legacy_role_priority = [
+            ".Ask",
+            ".Name is pronoun",
+            ".Any Pronouns",
+            ".It/It/Its",
+            ".Fae/Faer/Faers",
+            ".Ae/Aer",
+            ".They/Them/Theirs",
+            ".He/Him/His",
+            ".She/Her/Hers",
+            ".Not She/Her/Hers",
+            ".Not He/Him/His",
+        ]
+
         for member in guild.members:
-            legacy_roles = [r for r in member.roles if r.name in role_mappings]
-            if not legacy_roles:
+            # Find legacy roles the member currently has
+            member_legacy_roles = [r for r in member.roles if r.name in role_mappings]
+            if not member_legacy_roles:
                 continue
 
-            # Sort legacy roles by highest position first
-            legacy_roles.sort(key=lambda r: r.position, reverse=True)
+            # Map role name to role object for easy lookup
+            legacy_roles_by_name = {r.name: r for r in member_legacy_roles}
 
-            removed_roles = []
+            # Find the highest-priority legacy role from our hardcoded list
+            top_legacy_name = None
+            for name in legacy_role_priority:
+                if name in legacy_roles_by_name:
+                    top_legacy_name = name
+                    break
+
+            if not top_legacy_name:
+                continue  # Something went wrong, skip this member
+
+            removed_roles = member_legacy_roles.copy()
             added_pronouns = []
 
-            # Get color from highest priority legacy role
-            primary_legacy = legacy_roles[0]
-            _, primary_color = role_mappings[primary_legacy.name]
-            added_color = discord.utils.get(guild.roles, name=primary_color)
-
-            for legacy_role in legacy_roles:
-                pronoun, _ = role_mappings[legacy_role.name]
-                pronoun_role = discord.utils.get(guild.roles, name=pronoun)
-
-                removed_roles.append(legacy_role)
+            # Always add pronoun roles mapped from all legacy roles
+            for legacy_role in member_legacy_roles:
+                pronoun_name, _ = role_mappings[legacy_role.name]
+                pronoun_role = discord.utils.get(guild.roles, name=pronoun_name)
                 if pronoun_role and pronoun_role not in member.roles:
                     added_pronouns.append(pronoun_role)
 
+            # Add color role from top-priority legacy role
+            _, top_color_name = role_mappings[top_legacy_name]
+            added_color = discord.utils.get(guild.roles, name=top_color_name)
             roles_to_add = added_pronouns.copy()
             if added_color and added_color not in member.roles:
                 roles_to_add.append(added_color)
@@ -140,6 +162,7 @@ async def update_roles(ctx, mode: str = None):
                 if roles_to_add:
                     await member.add_roles(*roles_to_add)
 
+        # Send results in batches
         chunk_size = 10
         for i in range(0, len(all_updates), chunk_size):
             chunk = all_updates[i:i + chunk_size]
