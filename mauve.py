@@ -338,5 +338,66 @@ async def create_missing_roles(ctx):
 
     await ctx.send(embed=embed)
 
+@bot.command()
+@commands.has_role("MauvePermissions")
+async def assign_legacy_roles(ctx, mode: str = None):
+    is_dry_run = mode == "dry"
+    guild = ctx.guild
+    all_members = [m for m in guild.members if not m.bot]
+    legacy_role_names = list(role_mappings.keys())
+
+    if len(all_members) < 50:
+        await ctx.send("❌ Not enough members to assign roles to 50 users.")
+        return
+
+    selected_members = random.sample(all_members, 50)
+    assigned_log = []
+
+    update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} [LEGACY_ASSIGN] started by {ctx.author} in guild '{guild.name}'")
+
+    for member in selected_members:
+        role_count = random.randint(1, 5)
+        chosen_role_names = random.sample(legacy_role_names, role_count)
+
+        roles_to_add = []
+        added_names = []
+
+        for role_name in chosen_role_names:
+            role = discord.utils.get(guild.roles, name=role_name)
+            if role and role not in member.roles:
+                roles_to_add.append(role)
+                added_names.append(role.name)
+
+        if roles_to_add:
+            log_entry = f"{member.id} remove [] add {added_names}"
+            update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} {log_entry}")
+            assigned_log.append(f"{member.name} <- {added_names}")
+
+            if not is_dry_run:
+                try:
+                    await member.add_roles(*roles_to_add)
+                except discord.Forbidden:
+                    assigned_log[-1] += " ❌ Permission error"
+                except Exception as e:
+                    assigned_log[-1] += f" ⚠️ Error: {e}"
+
+    if not assigned_log:
+        await ctx.send("No roles were assigned.")
+        return
+
+    embed = discord.Embed(
+        title="🧾 Legacy Role Assignment (Dry Run)" if is_dry_run else "✅ Legacy Roles Assigned",
+        description="\n".join(assigned_log[:10]) + ("\n... (truncated)" if len(assigned_log) > 10 else ""),
+        color=discord.Color.purple()
+    )
+    await ctx.send(embed=embed)
+
+    try:
+        with open(update_log_path, 'rb') as f:
+            await ctx.send("📄 Here's the full update log:", file=discord.File(f, filename='role_updates.log'))
+    except Exception as e:
+        await ctx.send(f"⚠️ Could not upload the log: {e}")
+
+
 # Run the bot
 bot.run(TOKEN, log_handler=handler)
