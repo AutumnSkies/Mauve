@@ -107,26 +107,27 @@ async def update_roles(ctx, mode: str = None):
             if not legacy_roles:
                 continue
 
+            # Sort legacy roles by highest position first
             legacy_roles.sort(key=lambda r: r.position, reverse=True)
-            added_pronouns = []
-            added_color = None
-            removed_roles = []
 
-            top_color_set = False
+            removed_roles = []
+            added_pronouns = []
+
+            # Get color from highest priority legacy role
+            primary_legacy = legacy_roles[0]
+            _, primary_color = role_mappings[primary_legacy.name]
+            added_color = discord.utils.get(guild.roles, name=primary_color)
+
             for legacy_role in legacy_roles:
-                pronoun, color = role_mappings[legacy_role.name]
+                pronoun, _ = role_mappings[legacy_role.name]
                 pronoun_role = discord.utils.get(guild.roles, name=pronoun)
-                color_role = discord.utils.get(guild.roles, name=color)
 
                 removed_roles.append(legacy_role)
                 if pronoun_role and pronoun_role not in member.roles:
                     added_pronouns.append(pronoun_role)
-                if not top_color_set and color_role and color_role not in member.roles:
-                    added_color = color_role
-                    top_color_set = True
 
             roles_to_add = added_pronouns.copy()
-            if added_color:
+            if added_color and added_color not in member.roles:
                 roles_to_add.append(added_color)
 
             log_msg = f"{member.id} remove {[r.name for r in removed_roles]} add {[r.name for r in roles_to_add]}"
@@ -271,7 +272,7 @@ async def check(ctx):
         await ctx.send("All expected roles are present!")
     else:
         for embed in missing_messages:
-            await ctx.send(embed=embed
+            await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_role("MauvePermissions")
