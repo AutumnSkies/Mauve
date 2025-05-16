@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import re
+import random
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
