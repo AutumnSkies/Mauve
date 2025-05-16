@@ -14,8 +14,7 @@ intents.members = True
 intents.message_content = True
 
 description = '''You probably shouldn't use this if you don't know what it does.
-En masse role replacer made by stylisticallycatgirl (Sadie). Special thanks to Pea, Diane and all the rest on the rain discord for help!
-If you're having issues with permissions did you create and assign the "MauvePermissions" role?'''
+En masse role replacer made by stylisticallycatgirl (Sadie). Special thanks to Amby and the Rain Discord!'''
 
 bot = commands.Bot(command_prefix='m;', description=description, intents=intents)
 
