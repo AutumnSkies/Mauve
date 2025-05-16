@@ -345,7 +345,20 @@ async def assign_legacy_roles(ctx, mode: str = None):
     is_dry_run = mode == "dry"
     guild = ctx.guild
     all_members = [m for m in guild.members if not m.bot]
-    legacy_role_names = list(role_mappings.keys())
+
+    legacy_roles = [
+        ".Ask",
+        ".Name is pronoun",
+        ".Any Pronouns",
+        ".It/It/Its",
+        ".Fae/Faer/Faers",
+        ".Ae/Aer",
+        ".They/Them/Theirs",
+        ".He/Him/His",
+        ".She/Her/Hers",
+        ".Not She/Her/Hers",
+        ".Not He/Him/His",
+    ]
 
     if len(all_members) < 50:
         await ctx.send("❌ Not enough members to assign roles to 50 users.")
@@ -357,8 +370,8 @@ async def assign_legacy_roles(ctx, mode: str = None):
     update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} [LEGACY_ASSIGN] started by {ctx.author} in guild '{guild.name}'")
 
     for member in selected_members:
-        role_count = random.randint(1, 5)
-        chosen_role_names = random.sample(legacy_role_names, role_count)
+        role_count = random.randint(1, min(5, len(legacy_roles)))
+        chosen_role_names = random.sample(legacy_roles, role_count)
 
         roles_to_add = []
         added_names = []
