@@ -112,7 +112,8 @@ async def update_roles(ctx, mode: str = None):
             added_color = None
             removed_roles = []
 
-            for idx, legacy_role in enumerate(legacy_roles):
+            top_color_set = False
+            for legacy_role in legacy_roles:
                 pronoun, color = role_mappings[legacy_role.name]
                 pronoun_role = discord.utils.get(guild.roles, name=pronoun)
                 color_role = discord.utils.get(guild.roles, name=color)
@@ -120,8 +121,9 @@ async def update_roles(ctx, mode: str = None):
                 removed_roles.append(legacy_role)
                 if pronoun_role and pronoun_role not in member.roles:
                     added_pronouns.append(pronoun_role)
-                if idx == 0 and color_role and color_role not in member.roles:
+                if not top_color_set and color_role and color_role not in member.roles:
                     added_color = color_role
+                    top_color_set = True
 
             roles_to_add = added_pronouns.copy()
             if added_color:
@@ -137,7 +139,6 @@ async def update_roles(ctx, mode: str = None):
                 if roles_to_add:
                     await member.add_roles(*roles_to_add)
 
-        # Batch output
         chunk_size = 10
         for i in range(0, len(all_updates), chunk_size):
             chunk = all_updates[i:i + chunk_size]
@@ -274,7 +275,7 @@ async def check(ctx):
         await ctx.send(embed=embed)
 
     if found_all:
-        await ctx.send("🎉 All role mappings are complete.")
+        await ctx.send("All expected roles are present!")
 
 @bot.command()
 @commands.has_role("MauvePermissions")
