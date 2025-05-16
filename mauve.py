@@ -174,7 +174,7 @@ async def update_roles(ctx, mode: str = None):
             await ctx.send(embed=embed)
 
         update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} completed. {len(all_updates)} members processed.")
-        await ctx.send("✅ Done!")
+        await ctx.send("  Done!")
 
         try:
             with open(update_log_path, 'rb') as f:
