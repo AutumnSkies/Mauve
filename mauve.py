@@ -246,6 +246,7 @@ async def list(ctx):
 async def check(ctx):
     guild = ctx.guild
     found_all = True
+    missing_messages = []
 
     for legacy, (pronoun, color) in role_mappings.items():
         missing = []
@@ -260,22 +261,17 @@ async def check(ctx):
                 description="\n".join(f"❌ {r}" for r in missing),
                 color=discord.Color.purple()
             )
-        else:
-            embed = discord.Embed(
-                title="✅ All Present",
-                description=f"All roles found:\n• {legacy}\n• {pronoun}\n• {color}",
-                color=discord.Color.purple()
-            )
-        
-        embed.set_footer(text="Mapping: Legacy → Pronoun, Color")
-        embed.add_field(name="Legacy Role", value=legacy, inline=True)
-        embed.add_field(name="Pronoun Role", value=pronoun, inline=True)
-        embed.add_field(name="Color Role", value=color, inline=True)
-
-        await ctx.send(embed=embed)
+            embed.set_footer(text="Mapping: Legacy → Pronoun, Color")
+            embed.add_field(name="Legacy Role", value=legacy, inline=True)
+            embed.add_field(name="Pronoun Role", value=pronoun, inline=True)
+            embed.add_field(name="Color Role", value=color, inline=True)
+            missing_messages.append(embed)
 
     if found_all:
         await ctx.send("All expected roles are present!")
+    else:
+        for embed in missing_messages:
+            await ctx.send(embed=embed
 
 @bot.command()
 @commands.has_role("MauvePermissions")
