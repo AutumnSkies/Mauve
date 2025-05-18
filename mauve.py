@@ -128,101 +128,80 @@ async def ping(ctx):
 
 # The command that actually does what the bot is for
 
-@bot.command()
+@bot.command(name="update_roles")
 @commands.has_role("MauvePermissions")
 async def update_roles(ctx, mode: str = None):
-    is_dry_run = mode == "dry"
-    confirmation_message = await ctx.send(
-        f"{'A test has been' if is_dry_run else 'A mass role update has been'} requested. React with ✅ to confirm or ❌ to cancel."
-    )
-    await confirmation_message.add_reaction("✅")
-    await confirmation_message.add_reaction("❌")
+    """Updates legacy roles to pronoun and color roles. Requires --dry-run or --execute."""
+    guild = ctx.guild
+    channel = ctx.channel
 
-    def check(reaction, user):
-        return user == ctx.author and str(reaction.emoji) in ["✅", "❌"]
+    if mode not in ["--dry-run", "--execute"]:
+        await channel.send("❌ Please specify a mode: `--dry-run` to simulate or `--execute` to apply changes.\nExample: `m;update_roles --dry-run`")
+        return
 
-    try:
-        reaction, _ = await bot.wait_for('reaction_add', timeout=60.0, check=check)
-        if str(reaction.emoji) != "✅":
-            await ctx.send("You live to confirm another day!")
-            return
+    dry_run = mode == "--dry-run"
+    await channel.send(f"{'Dry-running' if dry_run else 'Executing'} role update for guild: {guild.name}...")
 
-        await ctx.send("Confirmed! This is going to take a bit! Get a cup of espresso while you wait?")
+    # Validate mappings and existing roles
+    missing_roles = set()
+    for legacy_role, (pronoun_role, color_role) in role_mappings.items():
+        if discord.utils.get(guild.roles, name=legacy_role) is None:
+            missing_roles.add(legacy_role)
+        if discord.utils.get(guild.roles, name=pronoun_role) is None:
+            missing_roles.add(pronoun_role)
+        if discord.utils.get(guild.roles, name=color_role) is None:
+            missing_roles.add(color_role)
 
-        guild = ctx.guild
-        all_updates = []
-        update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} started by {ctx.author} in guild '{guild.name}'")
+    if missing_roles:
+        await channel.send(f"Missing roles: {', '.join(missing_roles)}. Use `m;create_missing_roles` to create them.")
+        return
+
+    legacy_roles_set = set(role_mappings.keys())
+
+    for member in guild.members:
+        if member.bot:
+            continue
+
+        legacy_roles = [role for role in member.roles if role.name in legacy_roles_set]
+        if not legacy_roles:
+            continue
+
+        legacy_roles_sorted = sorted(legacy_roles, key=lambda r: legacy_role_priority.index(r.name))
+        top_legacy = legacy_roles_sorted[0].name
+
+        pronoun_roles_to_add = []
+        color_role_to_add = None
+
+        for legacy_role in legacy_roles:
+            pronoun, _ = role_mappings[legacy_role.name]
+            pronoun_role_obj = discord.utils.get(guild.roles, name=pronoun)
+            if pronoun_role_obj:
+                pronoun_roles_to_add.append(pronoun_role_obj)
+
+        _, color_role = role_mappings[top_legacy]
+        color_role_obj = discord.utils.get(guild.roles, name=color_role)
+
+        roles_to_remove = legacy_roles
+        roles_to_add = pronoun_roles_to_add
+        if color_role_obj:
+            roles_to_add.append(color_role_obj)
+
+        if dry_run:
+            status = f"[Dry run] Would update {member.mention}: remove {[r.name for r in roles_to_remove]}, add {[r.name for r in roles_to_add]}"
+        else:
+            try:
+                await member.remove_roles(*roles_to_remove, reason="Mauve pronoun migration")
+                await member.add_roles(*roles_to_add, reason="Mauve pronoun migration")
+                status = f"Updated {member.mention}: removed {[r.name for r in roles_to_remove]}, added {[r.name for r in roles_to_add]}"
+            except Exception as e:
+                status = f"❌ Error updating {member.mention}: {str(e)}"
+
+        await channel.send(status)
+        await asyncio.sleep(0.5)  # optional delay to avoid hitting rate limits
+
+    await channel.send("Role update completed.")
 
 
-
-        for member in guild.members:
-            # Find legacy roles the member currently has
-            member_legacy_roles = [r for r in member.roles if r.name in role_mappings]
-            if not member_legacy_roles:
-                continue
-
-            # Map role name to role object for easy lookup
-            legacy_roles_by_name = {r.name: r for r in member_legacy_roles}
-
-            # Find the highest-priority legacy role from our hardcoded list
-            top_legacy_name = None
-            for name in legacy_role_priority:
-                if name in legacy_roles_by_name:
-                    top_legacy_name = name
-                    break
-
-            if not top_legacy_name:
-                continue  # Something went wrong, skip this member
-
-            removed_roles = member_legacy_roles.copy()
-            added_pronouns = []
-
-            # Always add pronoun roles mapped from all legacy roles
-            for legacy_role in member_legacy_roles:
-                pronoun_name, _ = role_mappings[legacy_role.name]
-                pronoun_role = discord.utils.get(guild.roles, name=pronoun_name)
-                if pronoun_role and pronoun_role not in member.roles:
-                    added_pronouns.append(pronoun_role)
-
-            # Add color role from top-priority legacy role
-            _, top_color_name = role_mappings[top_legacy_name]
-            added_color = discord.utils.get(guild.roles, name=top_color_name)
-            roles_to_add = added_pronouns.copy()
-            if added_color and added_color not in member.roles:
-                roles_to_add.append(added_color)
-
-            log_msg = f"{member.id} remove {[r.name for r in removed_roles]} add {[r.name for r in roles_to_add]}"
-            update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} {log_msg}")
-            all_updates.append(log_msg)
-            print(f"[✓] {log_msg}")
-
-            if not is_dry_run:
-                await member.remove_roles(*removed_roles)
-                if roles_to_add:
-                    await member.add_roles(*roles_to_add)
-
-        # Send results in batches
-        chunk_size = 10
-        for i in range(0, len(all_updates), chunk_size):
-            chunk = all_updates[i:i + chunk_size]
-            embed = discord.Embed(
-                title="Dry Run Preview" if is_dry_run else "Updated Members",
-                description="\n".join(chunk),
-                color=discord.Color.purple()
-            )
-            await ctx.send(embed=embed)
-
-        update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} completed. {len(all_updates)} members processed.")
-        await ctx.send("  Done!")
-
-        try:
-            with open(update_log_path, 'rb') as f:
-                await ctx.send("Here's the full log:", file=discord.File(f, filename='role_updates.log'))
-        except Exception as e:
-            await ctx.send(f"Couldn't upload the log for some reason': {e}")
-
-    except asyncio.TimeoutError:
-        await ctx.send("Timeout!")
 
 # Probably best practice to have this here
 
@@ -518,31 +497,20 @@ async def assign_legacy_roles(ctx, mode: str = None):
 @bot.command()
 @commands.has_role("MauvePermissions")
 async def clear_roles(ctx):
-    """Remove legacy roles and their mapped pronoun and color roles from all users."""
-    
-    # First confirmation
+
+    # Single confirmation
     confirmation_message = await ctx.send(
-        "Are you sure you want to remove all legacy, pronoun, and color roles from users?\nReact with ✅ to continue or ❌ to cancel."
+        "Are you sure you want to remove all legacy, pronoun, and color roles from users?\nReact with ✅ to proceed or ❌ to cancel."
     )
     await confirmation_message.add_reaction("✅")
     await confirmation_message.add_reaction("❌")
 
     def check_reaction(reaction, user):
-        return user == ctx.author and str(reaction.emoji) in ["✅", "❌"] and reaction.message.id == confirmation_message.id
-
-    try:
-        reaction, _ = await bot.wait_for("reaction_add", timeout=30.0, check=check_reaction)
-        if str(reaction.emoji) != "✅":
-            return await ctx.send("Aborting!")
-    except asyncio.TimeoutError:
-        return await ctx.send("Timeout!")
-
-    # Second confirmation
-    second_confirmation = await ctx.send(
-        "This is your **final** confirmation. Are you **REALLY** sure you want to do this? React with ✅ to proceed or ❌ to cancel."
-    )
-    await second_confirmation.add_reaction("✅")
-    await second_confirmation.add_reaction("❌")
+        return (
+            user == ctx.author 
+            and str(reaction.emoji) in ["✅", "❌"] 
+            and reaction.message.id == confirmation_message.id
+        )
 
     try:
         reaction, _ = await bot.wait_for("reaction_add", timeout=30.0, check=check_reaction)
@@ -572,6 +540,7 @@ async def clear_roles(ctx):
                 await ctx.send(f"Failed to remove roles from {member.mention}: {e}")
 
     await ctx.send(f"Done! Removed all mapped roles from {removed_count} members.")
+
 
 # Run the bot
 bot.run(TOKEN, log_handler=handler)
