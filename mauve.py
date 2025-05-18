@@ -15,46 +15,11 @@ intents.members = True
 intents.message_content = True
 
 description = '''You probably shouldn't use this if you don't know what it does.
-En masse role replacer made by stylisticallycatgirl (Sadie). Special thanks to Amby and the Rain Discord!'''
+I do a lot of things, but I was made by Sadie (StylisticallyCatgirl)'''
 
 bot = commands.Bot(command_prefix='m;', description=description, intents=intents)
 
-# Set presence and ensure permissions role exists
-@bot.event
-async def on_ready():
-    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
-    await bot.change_presence(activity=discord.Game(name="Lavender is such a pretty color"))
-
-    role_name = "MauvePermissions"
-    for guild in bot.guilds:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if not role:
-            try:
-                await guild.create_role(name=role_name, reason="Role needed for specific permissions")
-                print(f"Created role `{role_name}` in `{guild.name}`")
-            except discord.Forbidden:
-                print(f"Missing permissions to create role in `{guild.name}`")
-
-# Handle missing permissions
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("You lack the `MauvePermissions` role to use this command.")
-
-# Logging configuration
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('Mauve')
-handler = logging.FileHandler(filename='Mauve.log', encoding='utf-8', mode='w')
-handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-logger.addHandler(handler)
-
-# Role update log
-update_log_path = 'role_updates.log'
-update_logger = logging.getLogger('RoleUpdates')
-update_logger.setLevel(logging.INFO)
-update_handler = logging.FileHandler(filename=update_log_path, encoding='utf-8', mode='a')
-update_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-update_logger.addHandler(update_handler)
+# Mappings for roles
 
 # Role mapping (legacy -> (new_pronoun, new_color))
 role_mappings = {
@@ -70,6 +35,88 @@ role_mappings = {
     ".Not She/Her/Hers": ("Not She/Her/Hers", "Peach"),
     ".Not He/Him/His": ("Not He/Him/His", "Orange"),
 }
+# Priorities for color roles - I'm aware this shouldn't be hardcoded but I can't get it to work properly without it
+legacy_role_priority = [
+    ".Ask",
+    ".Name is pronoun",
+    ".Any Pronouns",
+    ".It/It/Its",
+    ".Fae/Faer/Faers",
+    ".Ae/Aer",
+    ".They/Them/Theirs",
+    ".He/Him/His",
+    ".She/Her/Hers",
+    ".Not She/Her/Hers",
+    ".Not He/Him/His",
+]
+
+# For assinging random roles for the test commands
+legacy_roles = [
+    ".Ask",
+    ".Name is pronoun",
+    ".Any Pronouns",
+    ".It/It/Its",
+    ".Fae/Faer/Faers",
+    ".Ae/Aer",
+    ".They/Them/Theirs",
+    ".He/Him/His",
+    ".She/Her/Hers",
+    ".Not She/Her/Hers",
+    ".Not He/Him/His",
+]
+
+# Logging setup
+
+# Basic Logging configuration
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('Mauve')
+handler = logging.FileHandler(filename='Mauve.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
+
+# Rollback update logging
+update_log_path = 'role_updates.log'
+update_logger = logging.getLogger('RoleUpdates')
+update_logger.setLevel(logging.INFO)
+update_handler = logging.FileHandler(filename=update_log_path, encoding='utf-8', mode='a')
+update_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+update_logger.addHandler(update_handler)
+
+# Logging for created roles
+role_logger = logging.getLogger('RoleCreations')
+role_logger.setLevel(logging.INFO)
+role_creation_path = 'created_roles.log'
+if not any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(role_creation_path) for h in role_logger.handlers):
+    role_creation_handler = logging.FileHandler(filename=role_creation_path, encoding='utf-8', mode='a')
+    role_creation_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+    role_logger.addHandler(role_creation_handler)
+
+
+
+# Set presence and ensure permissions role exists
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user} (ID: {bot.user.id})')
+    await bot.change_presence(activity=discord.Game(name="Lavender is such a pretty color"))
+
+    role_name = "MauvePermissions"
+    for guild in bot.guilds:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            try:
+                await guild.create_role(name=role_name, reason="Required to operate Mauve")
+                print(f"Created role `{role_name}` in `{guild.name}`")
+            except discord.Forbidden:
+                print(f"Missing permissions to create role in `{guild.name}`")
+
+# Handle missing permissions
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send("You lack the `MauvePermissions` role, which is necessary for all functions of Mauve.")
+
+
+
 
 @bot.command()
 @commands.has_role("MauvePermissions")
@@ -81,7 +128,7 @@ async def ping(ctx):
 async def update_roles(ctx, mode: str = None):
     is_dry_run = mode == "dry"
     confirmation_message = await ctx.send(
-        f"{'Dry run' if is_dry_run else 'Real update'} requested. React with ✅ to confirm or ❌ to cancel."
+        f"{'A test has been' if is_dry_run else 'A mass role update has been'} requested. React with ✅ to confirm or ❌ to cancel."
     )
     await confirmation_message.add_reaction("✅")
     await confirmation_message.add_reaction("❌")
@@ -92,29 +139,16 @@ async def update_roles(ctx, mode: str = None):
     try:
         reaction, _ = await bot.wait_for('reaction_add', timeout=60.0, check=check)
         if str(reaction.emoji) != "✅":
-            await ctx.send("❌ Canceled.")
+            await ctx.send("You live to confirm another day!")
             return
 
-        await ctx.send("Confirmed. Processing...")
+        await ctx.send("Confirmed! This is going to take a bit! Get a cup of espresso while you wait?")
 
         guild = ctx.guild
         all_updates = []
         update_logger.info(f"{'[DRY RUN]' if is_dry_run else '[UPDATE]'} started by {ctx.author} in guild '{guild.name}'")
 
-        # Hardcoded legacy role priority (top = highest priority)
-        legacy_role_priority = [
-            ".Ask",
-            ".Name is pronoun",
-            ".Any Pronouns",
-            ".It/It/Its",
-            ".Fae/Faer/Faers",
-            ".Ae/Aer",
-            ".They/Them/Theirs",
-            ".He/Him/His",
-            ".She/Her/Hers",
-            ".Not She/Her/Hers",
-            ".Not He/Him/His",
-        ]
+
 
         for member in guild.members:
             # Find legacy roles the member currently has
@@ -178,22 +212,22 @@ async def update_roles(ctx, mode: str = None):
 
         try:
             with open(update_log_path, 'rb') as f:
-                await ctx.send("📄 Here's the full update log:", file=discord.File(f, filename='role_updates.log'))
+                await ctx.send("Here's the full log:", file=discord.File(f, filename='role_updates.log'))
         except Exception as e:
-            await ctx.send(f"⚠️ Could not upload the log: {e}")
+            await ctx.send(f"Couldn't upload the log for some reason': {e}")
 
     except asyncio.TimeoutError:
-        await ctx.send("⌛ Timeout.")
+        await ctx.send("Timeout!")
 
 @bot.command()
 @commands.has_role("MauvePermissions")
 async def rollback(ctx, mode: str = None):
     is_dry_run = mode == "dry"
     if not os.path.exists(update_log_path):
-        await ctx.send("❌ No log file found for rollback.")
+        await ctx.send("No log file found for rollback. (this will end well, won't it?)")
         return
 
-    await ctx.send("Rollback initiated. This may take a moment...")
+    await ctx.send("Rollback initiated. This may take a while, perhaps get some espresso in the meantime?")
 
     rollback_count = 0
     with open(update_log_path, 'r', encoding='utf-8') as log_file:
@@ -244,26 +278,26 @@ async def rollback(ctx, mode: str = None):
                     await role.delete(reason="Rollback of created role")
                 deleted_roles.append(role_name)
             except Exception as e:
-                await ctx.send(f"⚠️ Could not delete role `{role_name}`: {e}")
+                await ctx.send(f"Could not delete role `{role_name}`: {e}")
 
-    await ctx.send(f"✅ Rollback {'dry run' if is_dry_run else 'complete'} — {rollback_count} member entries processed.")
+    await ctx.send(f"Rollback {'test' if is_dry_run else 'complete'} — {rollback_count} member entries processed.")
     if deleted_roles:
-        await ctx.send(f"🗑️ Deleted roles: {', '.join(deleted_roles)}")
+        await ctx.send(f"Deleted roles: {', '.join(deleted_roles)}")
 
     try:
         with open(update_log_path, 'rb') as f:
-            await ctx.send("📄 Here's the updated log file:", file=discord.File(f, filename='role_updates.log'))
+            await ctx.send("Here's the updated log:", file=discord.File(f, filename='role_updates.log'))
     except Exception as e:
-        await ctx.send(f"⚠️ Could not upload the log: {e}")
+        await ctx.send(f"Couldn't' upload the log for some reason: {e}")
 
 @bot.command()
 async def list(ctx):
     if ctx.author.id != 1191948659160518656:
-        await ctx.send("❌ You are not authorized to use this command.")
+        await ctx.send("Usage of this command is limited to StylisticallyCatgirl!")
         return
 
     server_list = "\n".join([f"{guild.name} (ID: {guild.id})" for guild in bot.guilds])
-    await ctx.send(f"📋 The bot is in the following servers:\n```{server_list}```")
+    await ctx.send(f"The bot is in the following servers:\n```{server_list}```")
 
 @bot.command()
 @commands.has_role("MauvePermissions")
@@ -281,7 +315,7 @@ async def check(ctx):
         if missing:
             found_all = False
             embed = discord.Embed(
-                title="⚠️ Missing Roles",
+                title="I can't find these roles!",
                 description="\n".join(f"❌ {r}" for r in missing),
                 color=discord.Color.purple()
             )
@@ -303,15 +337,6 @@ async def create_missing_roles(ctx):
     guild = ctx.guild
     created_roles = []
 
-    # Setup logger for created roles
-    role_logger = logging.getLogger('RoleCreations')
-    role_logger.setLevel(logging.INFO)
-    role_creation_path = 'created_roles.log'
-    if not any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(role_creation_path) for h in role_logger.handlers):
-        role_creation_handler = logging.FileHandler(filename=role_creation_path, encoding='utf-8', mode='a')
-        role_creation_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-        role_logger.addHandler(role_creation_handler)
-
     for legacy, (pronoun, color) in role_mappings.items():
         for role_name in [legacy, pronoun, color]:
             if not discord.utils.get(guild.roles, name=role_name):
@@ -320,20 +345,20 @@ async def create_missing_roles(ctx):
                     created_roles.append(role_name)
                     role_logger.info(f"[CREATED_ROLE] {guild.id}:{role_name}")
                 except discord.Forbidden:
-                    await ctx.send(f"❌ Missing permissions to create role `{role_name}`")
+                    await ctx.send(f"I don't have the permissions to create' `{role_name}`")
                 except Exception as e:
-                    await ctx.send(f"⚠️ Error creating role `{role_name}`: {e}")
+                    await ctx.send(f"I couldn't create' `{role_name}` ' for some reason': {e}")
 
     if created_roles:
         embed = discord.Embed(
-            title="🆕 Created Missing Roles",
+            title="Created Missing Roles",
             description="\n".join(created_roles),
             color=discord.Color.purple()
         )
     else:
         embed = discord.Embed(
-            title="✅ All Roles Present",
-            description="No missing roles found in this server.",
+            title="All Roles Present",
+            description="Everything is as it should be",
             color=discord.Color.purple()
         )
 
@@ -346,22 +371,9 @@ async def assign_legacy_roles(ctx, mode: str = None):
     guild = ctx.guild
     all_members = [m for m in guild.members if not m.bot]
 
-    legacy_roles = [
-        ".Ask",
-        ".Name is pronoun",
-        ".Any Pronouns",
-        ".It/It/Its",
-        ".Fae/Faer/Faers",
-        ".Ae/Aer",
-        ".They/Them/Theirs",
-        ".He/Him/His",
-        ".She/Her/Hers",
-        ".Not She/Her/Hers",
-        ".Not He/Him/His",
-    ]
 
     if len(all_members) < 50:
-        await ctx.send("❌ Not enough members to assign roles to 50 users.")
+        await ctx.send("I need more than 50 users present to run this command!")
         return
 
     selected_members = random.sample(all_members, 50)
@@ -391,16 +403,16 @@ async def assign_legacy_roles(ctx, mode: str = None):
                 try:
                     await member.add_roles(*roles_to_add)
                 except discord.Forbidden:
-                    assigned_log[-1] += " ❌ Permission error"
+                    assigned_log[-1] += " Permission error"
                 except Exception as e:
-                    assigned_log[-1] += f" ⚠️ Error: {e}"
+                    assigned_log[-1] += f" Error: {e}"
 
     if not assigned_log:
         await ctx.send("No roles were assigned.")
         return
 
     embed = discord.Embed(
-        title="🧾 Legacy Role Assignment (Dry Run)" if is_dry_run else "✅ Legacy Roles Assigned",
+        title="Legacy Role Assignment (Test run)" if is_dry_run else "Legacy Roles Assigned",
         description="\n".join(assigned_log[:10]) + ("\n... (truncated)" if len(assigned_log) > 10 else ""),
         color=discord.Color.purple()
     )
@@ -408,9 +420,9 @@ async def assign_legacy_roles(ctx, mode: str = None):
 
     try:
         with open(update_log_path, 'rb') as f:
-            await ctx.send("📄 Here's the full update log:", file=discord.File(f, filename='role_updates.log'))
+            await ctx.send("Here's the full update log:", file=discord.File(f, filename='role_updates.log'))
     except Exception as e:
-        await ctx.send(f"⚠️ Could not upload the log: {e}")
+        await ctx.send(f"Could not upload the log: {e}")
 
 
 # Run the bot
