@@ -364,6 +364,10 @@ async def create_missing_roles(ctx):
 
     await ctx.send(embed=embed)
 
+
+# Everything below this is mostly just for testing
+# Probably not such a hot idea to run these on servers you care about
+
 @bot.command()
 @commands.has_role("MauvePermissions")
 async def assign_legacy_roles(ctx, mode: str = None):
@@ -424,6 +428,64 @@ async def assign_legacy_roles(ctx, mode: str = None):
     except Exception as e:
         await ctx.send(f"Could not upload the log: {e}")
 
+
+@bot.command()
+@commands.has_role("MauvePermissions")
+async def clear_roles(ctx):
+    """Remove legacy roles and their mapped pronoun and color roles from all users."""
+    
+    # First confirmation
+    confirmation_message = await ctx.send(
+        "Are you sure you want to remove all legacy, pronoun, and color roles from users?\nReact with ✅ to continue or ❌ to cancel."
+    )
+    await confirmation_message.add_reaction("✅")
+    await confirmation_message.add_reaction("❌")
+
+    def check_reaction(reaction, user):
+        return user == ctx.author and str(reaction.emoji) in ["✅", "❌"] and reaction.message.id == confirmation_message.id
+
+    try:
+        reaction, _ = await bot.wait_for("reaction_add", timeout=30.0, check=check_reaction)
+        if str(reaction.emoji) != "✅":
+            return await ctx.send("Aborting!")
+    except asyncio.TimeoutError:
+        return await ctx.send("Timeout!")
+
+    # Second confirmation
+    second_confirmation = await ctx.send(
+        "This is your **final** confirmation. Are you **REALLY** sure you want to do this? React with ✅ to proceed or ❌ to cancel."
+    )
+    await second_confirmation.add_reaction("✅")
+    await second_confirmation.add_reaction("❌")
+
+    try:
+        reaction, _ = await bot.wait_for("reaction_add", timeout=30.0, check=check_reaction)
+        if str(reaction.emoji) != "✅":
+            return await ctx.send("Aborting!")
+    except asyncio.TimeoutError:
+        return await ctx.send("Timeout!")
+
+    # Role removal logic
+    removed_count = 0
+    for member in ctx.guild.members:
+        roles_to_remove = []
+
+        for legacy_name, (pronoun_name, color_name) in role_mappings.items():
+            for role_name in [legacy_name, pronoun_name, color_name]:
+                role = discord.utils.get(ctx.guild.roles, name=role_name)
+                if role and role in member.roles:
+                    roles_to_remove.append(role)
+
+        if roles_to_remove:
+            try:
+                await member.remove_roles(*roles_to_remove, reason="Mass role removal via clear_roles")
+                removed_count += 1
+            except discord.Forbidden:
+                await ctx.send(f"Missing permissions to remove roles from {member.mention}.")
+            except discord.HTTPException as e:
+                await ctx.send(f"Failed to remove roles from {member.mention}: {e}")
+
+    await ctx.send(f"Done! Removed all mapped roles from {removed_count} members.")
 
 # Run the bot
 bot.run(TOKEN, log_handler=handler)
