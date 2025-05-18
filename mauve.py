@@ -541,6 +541,23 @@ async def clear_roles(ctx):
 
     await ctx.send(f"Done! Removed all mapped roles from {removed_count} members.")
 
+# I don't like doing math so I added this
+
+@bot.command(name="count")
+@commands.has_role("MauvePermissions")
+async def count_legacy(ctx):
+    guild = ctx.guild
+    legacy_role_names = set(role_mappings.keys())
+    legacy_roles = [role for role in guild.roles if role.name in legacy_role_names]
+    legacy_member_count = 0
+
+    for member in guild.members:
+        if any(role in legacy_roles for role in member.roles):
+            legacy_member_count += 1
+
+    await ctx.send(f"{legacy_member_count} users have a legacy role.")
+
+
 
 # Run the bot
 bot.run(TOKEN, log_handler=handler)
