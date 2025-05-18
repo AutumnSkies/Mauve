@@ -91,9 +91,12 @@ if not any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.absp
     role_creation_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
     role_logger.addHandler(role_creation_handler)
 
+backup_dir = "backups"
+os.makedirs(backup_dir, exist_ok=True)
 
 
 # Set presence and ensure permissions role exists
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
@@ -110,18 +113,20 @@ async def on_ready():
                 print(f"Missing permissions to create role in `{guild.name}`")
 
 # Handle missing permissions
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("You lack the `MauvePermissions` role, which is necessary for all functions of Mauve.")
 
-
-
+# Beacuse sometimes you just wanna play a game of ping pong
 
 @bot.command()
 @commands.has_role("MauvePermissions")
 async def ping(ctx):
     await ctx.send(f'Pong! {round(bot.latency * 1000)}ms')
+
+# The command that actually does what the bot is for
 
 @bot.command()
 @commands.has_role("MauvePermissions")
@@ -219,10 +224,88 @@ async def update_roles(ctx, mode: str = None):
     except asyncio.TimeoutError:
         await ctx.send("Timeout!")
 
+# Probably best practice to have this here
+
+@bot.command()
+@commands.has_role("MauvePermissions")
+async def backup_roles(ctx):
+    guild = ctx.guild
+    relevant_roles = set(role_mappings.keys()) | {
+        pronoun for pronoun, _ in role_mappings.values()
+    } | {
+        color for _, color in role_mappings.values()
+    }
+
+    backup_path = os.path.join(backup_dir, f"{guild.id}.log")
+
+    try:
+        with open(backup_path, 'w', encoding='utf-8') as f:
+            for member in guild.members:
+                member_roles = [r.name for r in member.roles if r.name in relevant_roles]
+                if member_roles:
+                    f.write(f"{member.id}:{','.join(member_roles)}\n")
+        await ctx.send(f"Backup complete. Saved relevant role data for `{guild.name}`.")
+    except Exception as e:
+        await ctx.send(f"Could not create backup: {e}")
+
+
+# In theory this should save all our collective asses if I mess up
+
 @bot.command()
 @commands.has_role("MauvePermissions")
 async def rollback(ctx, mode: str = None):
     is_dry_run = mode == "dry"
+    is_restore = mode == "restore"
+    guild = ctx.guild
+
+    if is_restore:
+        backup_path = os.path.join(backup_dir, f"{guild.id}.log")
+
+        if not os.path.exists(backup_path):
+            await ctx.send(f"No backup found for `{guild.name}`.")
+            return
+
+        await ctx.send("Restoring from backup. This may take a bit...")
+
+        relevant_roles = set(role_mappings.keys()) | {
+            pronoun for pronoun, _ in role_mappings.values()
+        } | {
+            color for _, color in role_mappings.values()
+        }
+
+        restored = 0
+        try:
+            with open(backup_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if ':' not in line:
+                        continue
+                    member_id_str, roles_csv = line.strip().split(":", 1)
+                    role_names = roles_csv.split(",")
+                    member = guild.get_member(int(member_id_str))
+                    if not member:
+                        continue
+
+                    current_affectable_roles = [r for r in member.roles if r.name in relevant_roles]
+                    desired_roles = [discord.utils.get(guild.roles, name=name) for name in role_names]
+                    desired_roles = [r for r in desired_roles if r is not None]
+
+                    try:
+                        if current_affectable_roles:
+                            await member.remove_roles(*current_affectable_roles, reason="Restoring backup roles")
+                        if desired_roles:
+                            await member.add_roles(*desired_roles, reason="Restoring backup roles")
+                        restored += 1
+                    except Exception as e:
+                        await ctx.send(f"⚠️ Could not restore roles for {member.name}: {e}")
+        except Exception as e:
+            await ctx.send(f"⚠️ Failed to process backup file: {e}")
+            return
+
+        await ctx.send(f"✅ Restore complete. Processed {restored} members.")
+        return
+
+    # --- Standard or Dry Rollback from role_updates.log ---
+
     if not os.path.exists(update_log_path):
         await ctx.send("No log file found for rollback. (this will end well, won't it?)")
         return
@@ -241,12 +324,12 @@ async def rollback(ctx, mode: str = None):
             except Exception:
                 continue
 
-            member = ctx.guild.get_member(member_id)
+            member = guild.get_member(member_id)
             if not member:
                 continue
 
-            roles_to_add = [discord.utils.get(ctx.guild.roles, name=r) for r in remove_roles if discord.utils.get(ctx.guild.roles, name=r)]
-            roles_to_remove = [discord.utils.get(ctx.guild.roles, name=r) for r in add_roles if discord.utils.get(ctx.guild.roles, name=r)]
+            roles_to_add = [discord.utils.get(guild.roles, name=r) for r in remove_roles if discord.utils.get(guild.roles, name=r)]
+            roles_to_remove = [discord.utils.get(guild.roles, name=r) for r in add_roles if discord.utils.get(guild.roles, name=r)]
 
             log_msg = f"Rollback for {member.name}: add {[r.name for r in roles_to_add]}, remove {[r.name for r in roles_to_remove]}"
             update_logger.info(f"{'[DRY ROLLBACK]' if is_dry_run else '[ROLLBACK]'} {log_msg}")
@@ -259,27 +342,24 @@ async def rollback(ctx, mode: str = None):
                 if roles_to_add:
                     await member.add_roles(*roles_to_add)
 
-    # Handle created role deletions
-    role_creation_path = 'created_roles.log'
-    created_roles = []
+    # --- Delete Roles Created by Mauve if needed ---
+    deleted_roles = []
     if os.path.exists(role_creation_path):
         with open(role_creation_path, 'r', encoding='utf-8') as f:
             for line in f:
                 match = re.match(r".*\[CREATED_ROLE\] (\d+):(.+)", line)
-                if match and match.group(1) == str(ctx.guild.id):
-                    created_roles.append(match.group(2))
+                if match and match.group(1) == str(guild.id):
+                    role_name = match.group(2)
+                    role = discord.utils.get(guild.roles, name=role_name)
+                    if role:
+                        try:
+                            if not is_dry_run:
+                                await role.delete(reason="Rollback of created role")
+                            deleted_roles.append(role_name)
+                        except Exception as e:
+                            await ctx.send(f"Could not delete role `{role_name}`: {e}")
 
-    deleted_roles = []
-    for role_name in created_roles:
-        role = discord.utils.get(ctx.guild.roles, name=role_name)
-        if role:
-            try:
-                if not is_dry_run:
-                    await role.delete(reason="Rollback of created role")
-                deleted_roles.append(role_name)
-            except Exception as e:
-                await ctx.send(f"Could not delete role `{role_name}`: {e}")
-
+    # --- Final Reporting ---
     await ctx.send(f"Rollback {'test' if is_dry_run else 'complete'} — {rollback_count} member entries processed.")
     if deleted_roles:
         await ctx.send(f"Deleted roles: {', '.join(deleted_roles)}")
@@ -288,7 +368,9 @@ async def rollback(ctx, mode: str = None):
         with open(update_log_path, 'rb') as f:
             await ctx.send("Here's the updated log:", file=discord.File(f, filename='role_updates.log'))
     except Exception as e:
-        await ctx.send(f"Couldn't' upload the log for some reason: {e}")
+        await ctx.send(f"Couldn't upload the log for some reason: {e}")
+
+# I was curious what servers the bot was in
 
 @bot.command()
 async def list(ctx):
@@ -298,6 +380,8 @@ async def list(ctx):
 
     server_list = "\n".join([f"{guild.name} (ID: {guild.id})" for guild in bot.guilds])
     await ctx.send(f"The bot is in the following servers:\n```{server_list}```")
+
+# Makes sure that every role that is expected to be present is actually present
 
 @bot.command()
 @commands.has_role("MauvePermissions")
@@ -330,6 +414,8 @@ async def check(ctx):
     else:
         for embed in missing_messages:
             await ctx.send(embed=embed)
+
+# I'm not sure why I wrote this, but it was useful so it stays
 
 @bot.command()
 @commands.has_role("MauvePermissions")
